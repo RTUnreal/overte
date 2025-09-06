@@ -343,12 +343,12 @@ void DomainServerSettingsManager::setupConfigMap(const QString& userConfigFilena
 
             foreach (QString allowedUser, allowedUsers) {
                 // even if isRestrictedAccess is false, we have to add explicit rows for these users.
-                _agentPermissions[NodePermissionsKey(allowedUser, 0)].reset(new NodePermissions(allowedUser));
-                _agentPermissions[NodePermissionsKey(allowedUser, 0)]->set(NodePermissions::Permission::canConnectToDomain);
+                _agentPermissions[NodePermissionsKey(allowedUser, QUuid::fromUInt128(0))].reset(new NodePermissions(allowedUser));
+                _agentPermissions[NodePermissionsKey(allowedUser, QUuid::fromUInt128(0))]->set(NodePermissions::Permission::canConnectToDomain);
             }
 
             foreach (QString allowedEditor, allowedEditors) {
-                NodePermissionsKey editorKey(allowedEditor, 0);
+                NodePermissionsKey editorKey(allowedEditor, QUuid::fromUInt128(0));
                 if (!_agentPermissions.contains(editorKey)) {
                     _agentPermissions[editorKey].reset(new NodePermissions(allowedEditor));
                     if (isRestrictedAccess) {
@@ -955,7 +955,7 @@ void DomainServerSettingsManager::processNodeKickRequestPacket(QSharedPointer<Re
                             qWarning() << "attempt to kick node running on same machine as domain server (by fingerprint), ignoring KickRequest";
                             return;
                         }
-                        NodePermissionsKey machineFingerprintKey(nodeData->getMachineFingerprint().toString(), 0);
+                        NodePermissionsKey machineFingerprintKey(nodeData->getMachineFingerprint().toString(), QUuid::fromUInt128(0));
 
                         // check if there were already permissions for the fingerprint
                         bool hadFingerprintPermissions = hasPermissionsForMachineFingerprint(nodeData->getMachineFingerprint());
@@ -1101,7 +1101,7 @@ NodePermissions DomainServerSettingsManager::getStandardPermissionsForName(const
 }
 
 NodePermissions DomainServerSettingsManager::getPermissionsForName(const QString& name) const {
-    NodePermissionsKey nameKey = NodePermissionsKey(name, 0);
+    NodePermissionsKey nameKey = NodePermissionsKey(name, QUuid::fromUInt128(0));
     if (_agentPermissions.contains(nameKey)) {
         return *(_agentPermissions[nameKey].get());
     }
@@ -1111,7 +1111,7 @@ NodePermissions DomainServerSettingsManager::getPermissionsForName(const QString
 }
 
 NodePermissions DomainServerSettingsManager::getPermissionsForIP(const QHostAddress& address) const {
-    NodePermissionsKey ipKey = NodePermissionsKey(address.toString(), 0);
+    NodePermissionsKey ipKey = NodePermissionsKey(address.toString(), QUuid::fromUInt128(0));
     if (_ipPermissions.contains(ipKey)) {
         return *(_ipPermissions[ipKey].get());
     }
@@ -1121,7 +1121,7 @@ NodePermissions DomainServerSettingsManager::getPermissionsForIP(const QHostAddr
 }
 
 NodePermissions DomainServerSettingsManager::getPermissionsForMAC(const QString& macAddress) const {
-    NodePermissionsKey macKey = NodePermissionsKey(macAddress, 0);
+    NodePermissionsKey macKey = NodePermissionsKey(macAddress, QUuid::fromUInt128(0));
     if (_macPermissions.contains(macKey)) {
         return *(_macPermissions[macKey].get());
     }
@@ -1131,7 +1131,7 @@ NodePermissions DomainServerSettingsManager::getPermissionsForMAC(const QString&
 }
 
 NodePermissions DomainServerSettingsManager::getPermissionsForMachineFingerprint(const QUuid& machineFingerprint) const {
-    NodePermissionsKey fingerprintKey = NodePermissionsKey(machineFingerprint.toString(), 0);
+    NodePermissionsKey fingerprintKey = NodePermissionsKey(machineFingerprint.toString(), QUuid::fromUInt128(0));
     if (_machineFingerprintPermissions.contains(fingerprintKey)) {
         return *(_machineFingerprintPermissions[fingerprintKey].get());
     }
@@ -2157,11 +2157,11 @@ void DomainServerSettingsManager::apiGetGroupRanksJSONCallback(QNetworkReply* re
 
     if (jsonObject["status"].toString() == "success") {
         QJsonObject groups = jsonObject["data"].toObject()["groups"].toObject();
-        foreach (auto groupID, groups.keys()) {
+        for (auto const &groupID: groups.keys()) {
             QJsonObject group = groups[groupID].toObject();
             QJsonArray ranks = group["ranks"].toArray();
 
-            QHash<QUuid, GroupRank>& ranksForGroup = _groupRanks[groupID];
+            QHash<QUuid, GroupRank>& ranksForGroup = _groupRanks[QUuid::fromString(groupID)];
             QHash<QUuid, bool> idsFromThisUpdate;
 
             for (int rankIndex = 0; rankIndex < ranks.size(); rankIndex++) {
@@ -2183,7 +2183,7 @@ void DomainServerSettingsManager::apiGetGroupRanksJSONCallback(QNetworkReply* re
             }
 
             // clean up any that went away
-            foreach (QUuid rankID, ranksForGroup.keys()) {
+            for (const QUuid &rankID: ranksForGroup.keys()) {
                 if (!idsFromThisUpdate.contains(rankID)) {
                     ranksForGroup.remove(rankID);
                 }
