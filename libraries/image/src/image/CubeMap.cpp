@@ -185,6 +185,8 @@ private:
         } else if (value >= dim) {
             src = dim;
             dst = dim + 1;
+        } else {
+            Q_UNREACHABLE();
         }
         return std::make_pair(src, dst);
     }
