@@ -5,6 +5,9 @@ target_nvtt()
 target_tbb()
 target_etc2comp()
 target_openexr()
+target_basisu()
+
+add_cpp_rust_bridge()
 
 if (UNIX AND NOT APPLE)
   set(THREADS_PREFER_PTHREAD_FLAG ON)

@@ -12,62 +12,42 @@
 
 #include <cmath>
 #include <TBBHelpers.h>
+#include <qglobal.h>
 
 #include "RandomAndNoise.h"
 #include "BRDF.h"
 #include "ImageLogging.h"
 
 #ifndef M_PI
-#define M_PI    3.14159265359
+#define M_PI 3.14159265359
 #endif
 
-#include <nvtt/nvtt.h>
+#include <image.rs.h>
 
 using namespace image;
 
 static const glm::vec3 FACE_NORMALS[24] = {
     // POSITIVE X
-    glm::vec3(1.0f, 1.0f, 1.0f),
-    glm::vec3(1.0f, 1.0f, -1.0f),
-    glm::vec3(1.0f, -1.0f, 1.0f),
-    glm::vec3(1.0f, -1.0f, -1.0f),
+    glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(1.0f, -1.0f, -1.0f),
     // NEGATIVE X
-    glm::vec3(-1.0f, 1.0f, -1.0f),
-    glm::vec3(-1.0f, 1.0f, 1.0f),
-    glm::vec3(-1.0f, -1.0f, -1.0f),
-    glm::vec3(-1.0f, -1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(-1.0f, -1.0f, 1.0f),
     // POSITIVE Y
-    glm::vec3(-1.0f, 1.0f, -1.0f),
-    glm::vec3(1.0f, 1.0f, -1.0f),
-    glm::vec3(-1.0f, 1.0f, 1.0f),
-    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f),
     // NEGATIVE Y
-    glm::vec3(-1.0f, -1.0f, 1.0f),
-    glm::vec3(1.0f, -1.0f, 1.0f),
-    glm::vec3(-1.0f, -1.0f, -1.0f),
-    glm::vec3(1.0f, -1.0f, -1.0f),
+    glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(1.0f, -1.0f, 1.0f), glm::vec3(-1.0f, -1.0f, -1.0f), glm::vec3(1.0f, -1.0f, -1.0f),
     // POSITIVE Z
-    glm::vec3(-1.0f, 1.0f, 1.0f),
-    glm::vec3(1.0f, 1.0f, 1.0f),
-    glm::vec3(-1.0f, -1.0f, 1.0f),
-    glm::vec3(1.0f, -1.0f, 1.0f),
+    glm::vec3(-1.0f, 1.0f, 1.0f), glm::vec3(1.0f, 1.0f, 1.0f), glm::vec3(-1.0f, -1.0f, 1.0f), glm::vec3(1.0f, -1.0f, 1.0f),
     // NEGATIVE Z
-    glm::vec3(1.0f, 1.0f, -1.0f),
-    glm::vec3(-1.0f, 1.0f, -1.0f),
-    glm::vec3(1.0f, -1.0f, -1.0f),
-    glm::vec3(-1.0f, -1.0f, -1.0f)
+    glm::vec3(1.0f, 1.0f, -1.0f), glm::vec3(-1.0f, 1.0f, -1.0f), glm::vec3(1.0f, -1.0f, -1.0f), glm::vec3(-1.0f, -1.0f, -1.0f)
 };
 
 struct CubeFaceMip {
-
     CubeFaceMip(gpu::uint16 level, const CubeMap* cubemap) {
         _dims = cubemap->getMipDimensions(level);
         _lineStride = cubemap->getMipLineStride(level);
     }
 
-    CubeFaceMip(const CubeFaceMip& other) : _dims(other._dims), _lineStride(other._lineStride) {
-
-    }
+    CubeFaceMip(const CubeFaceMip& other) : _dims(other._dims), _lineStride(other._lineStride) {}
 
     gpu::Vec2i _dims;
     size_t _lineStride;
@@ -75,10 +55,7 @@ struct CubeFaceMip {
 
 class CubeMap::ConstMip : public CubeFaceMip {
 public:
-
-    ConstMip(gpu::uint16 level, const CubeMap* cubemap) : 
-        CubeFaceMip(level, cubemap), _faces(cubemap->_mips[level]) {
-    }
+    ConstMip(gpu::uint16 level, const CubeMap* cubemap) : CubeFaceMip(level, cubemap), _faces(cubemap->_mips[level]) {}
 
     glm::vec4 fetch(int face, glm::vec2 uv) const {
         glm::vec2 coordFrac = uv * glm::vec2(_dims) - 0.5f;
@@ -114,20 +91,14 @@ public:
     }
 
 private:
-
     const Faces& _faces;
-
 };
 
 class CubeMap::Mip : public CubeFaceMip {
 public:
+    explicit Mip(gpu::uint16 level, CubeMap* cubemap) : CubeFaceMip(level, cubemap), _faces(cubemap->_mips[level]) {}
 
-    explicit Mip(gpu::uint16 level, CubeMap* cubemap) :
-        CubeFaceMip(level, cubemap), _faces(cubemap->_mips[level]) {
-    }
-
-    Mip(const Mip& other) : CubeFaceMip(other), _faces(other._faces) {
-    }
+    Mip(const Mip& other) : CubeFaceMip(other), _faces(other._faces) {}
 
     void applySeams() {
         if (EDGE_WIDTH == 0) {
@@ -158,16 +129,19 @@ public:
 
             pixels[0] = pixels[1];
             pixels[_dims.x + 1] = pixels[_dims.x];
-            pixels[(_dims.y + 1)*(_dims.x + 2)] = pixels[(_dims.y + 1)*(_dims.x + 2) + 1];
-            pixels[(_dims.y + 2)*(_dims.x + 2) - 1] = pixels[(_dims.y + 2)*(_dims.x + 2) - 2];
+            pixels[(_dims.y + 1) * (_dims.x + 2)] = pixels[(_dims.y + 1) * (_dims.x + 2) + 1];
+            pixels[(_dims.y + 2) * (_dims.x + 2) - 1] = pixels[(_dims.y + 2) * (_dims.x + 2) - 2];
         }
     }
 
 private:
-
     Faces& _faces;
 
-    inline static void copy(CubeMap::Face::const_iterator srcFirst, CubeMap::Face::const_iterator srcLast, size_t srcStride, CubeMap::Face::iterator dstBegin, size_t dstStride) {
+    inline static void copy(CubeMap::Face::const_iterator srcFirst,
+                            CubeMap::Face::const_iterator srcLast,
+                            size_t srcStride,
+                            CubeMap::Face::iterator dstBegin,
+                            size_t dstStride) {
         while (srcFirst <= srcLast) {
             *dstBegin = *srcFirst;
             srcFirst += srcStride;
@@ -237,7 +211,7 @@ private:
     }
 
     void copyRowToRow(int srcFace, int srcRow, int dstFace, int dstRow, const int dstInc) {
-        const auto lastOffset =(_dims.x - 1);
+        const auto lastOffset = (_dims.x - 1);
         auto srcFirst = _faces[srcFace].begin() + srcRow * _lineStride + 1;
         auto srcLast = srcFirst + lastOffset;
 
@@ -300,21 +274,16 @@ private:
     }
 };
 
-static void copySurface(const nvtt::Surface& source, glm::vec4* dest, size_t dstLineStride) {
-    const float* srcRedIt = source.channel(0);
-    const float* srcGreenIt = source.channel(1);
-    const float* srcBlueIt = source.channel(2);
-    const float* srcAlphaIt = source.channel(3);
+static void copySurface(const ::image::rust::MipMapBuilder& source, glm::vec4* dest, size_t dstLineStride) {
+    auto src = source.get_mipmap();
+    auto& ps = src.data;
 
-    for (int y = 0; y < source.height(); y++) {
+    for (size_t y = 0; y < src.height; y++) {
         glm::vec4* dstColIt = dest;
-        for (int x = 0; x < source.width(); x++) {
-            *dstColIt = glm::vec4(*srcRedIt, *srcGreenIt, *srcBlueIt, *srcAlphaIt);
+        for (size_t x = 0; x < src.width; x++) {
+            auto& p = ps[x + y * src.width];
+            *dstColIt = glm::vec4(p.red, p.green, p.blue, p.alpha);
             dstColIt++;
-            srcRedIt++;
-            srcGreenIt++;
-            srcBlueIt++;
-            srcAlphaIt++;
         }
         dest += dstLineStride;
     }
@@ -329,24 +298,22 @@ CubeMap::CubeMap(const std::vector<Image>& faces, int mipCount, const std::atomi
 
     int face;
 
-    nvtt::Surface surface;
-    surface.setAlphaMode(nvtt::AlphaMode_None);
-    surface.setWrapMode(nvtt::WrapMode_Mirror);
-
     // Compute mips
     for (face = 0; face < 6; face++) {
         Image faceImage = faces[face].getConvertedToFormat(Image::Format_RGBAF);
 
-        surface.setImage(nvtt::InputFormat_RGBA_32F, _width, _height, 1, faceImage.editBits());
+        std::vector<image::rust::Pixel> fpixels = faceImage.getPixels();
+
+        auto mipmapbuilder = image::rust::MipMapBuilder::create(fpixels, _width, _height);
 
         auto mipLevel = 0;
-        copySurface(surface, editFace(0, face), getMipLineStride(0));
+        copySurface(*mipmapbuilder, editFace(0, face), getMipLineStride(0));
 
-        while (surface.canMakeNextMipmap() && !abortProcessing.load()) {
-            surface.buildNextMipmap(nvtt::MipmapFilter_Box);
+        while (mipmapbuilder->can_build_next_mip_map() && !abortProcessing.load()) {
+            mipmapbuilder->build_next_mip_map();
             mipLevel++;
 
-            copySurface(surface, editFace(mipLevel, face), getMipLineStride(mipLevel));
+            copySurface(*mipmapbuilder, editFace(mipLevel, face), getMipLineStride(mipLevel));
         }
     }
 
@@ -372,7 +339,12 @@ void CubeMap::applyGamma(float value) {
     }
 }
 
-void CubeMap::copyFace(int width, int height, const glm::vec4* source, size_t srcLineStride, glm::vec4* dest, size_t dstLineStride) {
+void CubeMap::copyFace(int width,
+                       int height,
+                       const glm::vec4* source,
+                       size_t srcLineStride,
+                       glm::vec4* dest,
+                       size_t dstLineStride) {
     for (int y = 0; y < height; y++) {
         std::copy(source, source + width, dest);
         source += srcLineStride;
@@ -383,12 +355,13 @@ void CubeMap::copyFace(int width, int height, const glm::vec4* source, size_t sr
 Image CubeMap::getFaceImage(gpu::uint16 mipLevel, int face) const {
     auto mipDims = getMipDimensions(mipLevel);
     Image faceImage(mipDims.x, mipDims.y, Image::Format_RGBAF);
-    copyFace(mipDims.x, mipDims.y, getFace(mipLevel, face), getMipLineStride(mipLevel), (glm::vec4*)faceImage.editBits(), faceImage.getBytesPerLineCount() / sizeof(glm::vec4));
+    copyFace(mipDims.x, mipDims.y, getFace(mipLevel, face), getMipLineStride(mipLevel), (glm::vec4*)faceImage.editBits(),
+             faceImage.getBytesPerLineCount() / sizeof(glm::vec4));
     return faceImage;
 }
 
 void CubeMap::reset(int width, int height, int mipCount) {
-    assert(mipCount >0 && width > 0 && height > 0);
+    assert(mipCount > 0 && width > 0 && height > 0);
     _width = width;
     _height = height;
     _mips.resize(mipCount);
@@ -605,7 +578,11 @@ void CubeMap::convolveForGGX(CubeMap& output, const std::atomic<bool>& abortProc
     }
 }
 
-void CubeMap::convolveMipFaceForGGX(const GGXSamples& samples, CubeMap& output, gpu::uint16 mipLevel, int face, const std::atomic<bool>& abortProcessing) const {
+void CubeMap::convolveMipFaceForGGX(const GGXSamples& samples,
+                                    CubeMap& output,
+                                    gpu::uint16 mipLevel,
+                                    int face,
+                                    const std::atomic<bool>& abortProcessing) const {
     const glm::vec3* faceNormals = FACE_NORMALS + face * 4;
     const glm::vec3 deltaYNormalLo = faceNormals[2] - faceNormals[0];
     const glm::vec3 deltaYNormalHi = faceNormals[3] - faceNormals[1];
@@ -613,29 +590,30 @@ void CubeMap::convolveMipFaceForGGX(const GGXSamples& samples, CubeMap& output, 
     const auto outputLineStride = output.getMipLineStride(mipLevel);
     auto outputFacePixels = output.editFace(mipLevel, face);
 
-    tbb::parallel_for(tbb::blocked_range2d<int, int>(0, mipDimensions.y, 32, 0, mipDimensions.x, 32), [&](const tbb::blocked_range2d<int, int>& range) {
-        auto rowRange = range.rows();
-        auto colRange = range.cols();
+    tbb::parallel_for(tbb::blocked_range2d<int, int>(0, mipDimensions.y, 32, 0, mipDimensions.x, 32),
+                      [&](const tbb::blocked_range2d<int, int>& range) {
+                          auto rowRange = range.rows();
+                          auto colRange = range.cols();
 
-        for (auto y = rowRange.begin(); y < rowRange.end(); y++) {
-            if (abortProcessing.load()) {
-                break;
-            }
+                          for (auto y = rowRange.begin(); y < rowRange.end(); y++) {
+                              if (abortProcessing.load()) {
+                                  break;
+                              }
 
-            const float yAlpha = (y + 0.5f) / mipDimensions.y;
-            const glm::vec3 normalXLo = faceNormals[0] + deltaYNormalLo * yAlpha;
-            const glm::vec3 normalXHi = faceNormals[1] + deltaYNormalHi * yAlpha;
-            const glm::vec3 deltaXNormal = normalXHi - normalXLo;
+                              const float yAlpha = (y + 0.5f) / mipDimensions.y;
+                              const glm::vec3 normalXLo = faceNormals[0] + deltaYNormalLo * yAlpha;
+                              const glm::vec3 normalXHi = faceNormals[1] + deltaYNormalHi * yAlpha;
+                              const glm::vec3 deltaXNormal = normalXHi - normalXLo;
 
-            for (auto x = colRange.begin(); x < colRange.end(); x++) {
-                const float xAlpha = (x + 0.5f) / mipDimensions.x;
-                // Interpolate normal for this pixel
-                const glm::vec3 normal = glm::normalize(normalXLo + deltaXNormal * xAlpha);
+                              for (auto x = colRange.begin(); x < colRange.end(); x++) {
+                                  const float xAlpha = (x + 0.5f) / mipDimensions.x;
+                                  // Interpolate normal for this pixel
+                                  const glm::vec3 normal = glm::normalize(normalXLo + deltaXNormal * xAlpha);
 
-                outputFacePixels[x + y * outputLineStride] = computeConvolution(normal, samples);
-            }
-        }
-    });
+                                  outputFacePixels[x + y * outputLineStride] = computeConvolution(normal, samples);
+                              }
+                          }
+                      });
 }
 
 glm::vec4 CubeMap::computeConvolution(const glm::vec3& N, const GGXSamples& samples) const {

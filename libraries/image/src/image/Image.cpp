@@ -2,15 +2,13 @@
 #include "ImageLogging.h"
 #include "TextureProcessing.h"
 
-#include <nvtt/nvtt.h>
+#include <basisu/encoder/basisu_comp.h>
 
 using namespace image;
 
-Image::Image(int width, int height, Format format) : 
-    _dims(width, height), 
-    _format(format) {
+Image::Image(int width, int height, Format format) : _dims(width, height), _format(format) {
     if (_format == Format_RGBAF) {
-        _floatData.resize(width*height);
+        _floatData.resize(width * height);
     } else {
         _packedData = QImage(width, height, (QImage::Format)format);
     }
@@ -24,7 +22,7 @@ size_t Image::getByteCount() const {
     }
 }
 
-size_t Image::getBytesPerLineCount() const { 
+size_t Image::getBytesPerLineCount() const {
     if (_format == Format_RGBAF) {
         return sizeof(FloatPixels::value_type) * _dims.x;
     } else {
@@ -40,7 +38,7 @@ glm::uint8* Image::editScanLine(int y) {
     }
 }
 
-const glm::uint8* Image::getScanLine(int y) const { 
+const glm::uint8* Image::getScanLine(int y) const {
     if (_format == Format_RGBAF) {
         return reinterpret_cast<const glm::uint8*>(_floatData.data() + y * _dims.x);
     } else {
@@ -64,59 +62,47 @@ const glm::uint8* Image::getBits() const {
     }
 }
 
+std::vector<image::rust::Pixel> Image::getPixels() const {
+    Q_ASSERT(_format == Format_RGBAF || _format == Format_PACKED_FLOAT);
+
+    basisu::imagef src_img;
+    std::vector<image::rust::Pixel> fpixels;
+    fpixels.reserve(getWidth() * getHeight());
+
+    if (_format == Format_RGBAF) {
+        for (const auto& el : _floatData) {
+            fpixels.emplace_back(el[0], el[1], el[2], el[3]);
+        }
+    } else {
+        // Start by converting to full float
+        auto unpackFunc = getHDRUnpackingFunction();
+        for (glm::uint32 lineNb = 0; lineNb < getHeight(); lineNb++) {
+            const glm::uint32* srcPixelIt = reinterpret_cast<const glm::uint32*>(getScanLine((int)lineNb));
+            const glm::uint32* srcPixelEnd = srcPixelIt + getWidth();
+
+            while (srcPixelIt < srcPixelEnd) {
+                auto out = unpackFunc(*srcPixelIt);
+                fpixels.emplace_back(out[0], out[1], out[2], 1.0f);
+            }
+        }
+    }
+    return fpixels;
+}
+
 Image Image::getScaled(glm::uvec2 dstSize, AspectRatioMode ratioMode, TransformationMode transformMode) const {
     if (_format == Format_PACKED_FLOAT || _format == Format_RGBAF) {
-        nvtt::Surface surface;
+        std::vector<image::rust::Pixel> fpixels = getPixels();
+
+        auto out = image::rust::scale_float_image(fpixels, getWidth(), getHeight(), dstSize.x, dstSize.y,
+                                                  transformMode == Qt::TransformationMode::FastTransformation
+                                                      ? image::rust::ResizeFilter::Fast
+                                                      : image::rust::ResizeFilter::Smooth);
 
         if (_format == Format_RGBAF) {
-            surface.setImage(nvtt::InputFormat_RGBA_32F, getWidth(), getHeight(), 1, _floatData.data());
-        } else {
-            // Start by converting to full float
-            glm::vec4* floatPixels = new glm::vec4[getWidth()*getHeight()];
-            auto unpackFunc = getHDRUnpackingFunction();
-            auto floatDataIt = floatPixels;
-            for (glm::uint32 lineNb = 0; lineNb < getHeight(); lineNb++) {
-                const glm::uint32* srcPixelIt = reinterpret_cast<const glm::uint32*>(getScanLine((int)lineNb));
-                const glm::uint32* srcPixelEnd = srcPixelIt + getWidth();
+            Image output(dstSize.x, dstSize.y, Image::Format_RGBAF);
 
-                while (srcPixelIt < srcPixelEnd) {
-                    *floatDataIt = glm::vec4(unpackFunc(*srcPixelIt), 1.0f);
-                    ++srcPixelIt;
-                    ++floatDataIt;
-                }
-            }
-
-            // Perform filtered resize with NVTT
-            static_assert(sizeof(glm::vec4) == 4 * sizeof(float), "Assuming glm::vec4 holds 4 floats");
-            surface.setImage(nvtt::InputFormat_RGBA_32F, getWidth(), getHeight(), 1, floatPixels);
-            delete[] floatPixels;
-        }
-
-        nvtt::ResizeFilter filter = nvtt::ResizeFilter_Kaiser;
-        if (transformMode == Qt::TransformationMode::FastTransformation) {
-            filter = nvtt::ResizeFilter_Box;
-        }
-        surface.resize(dstSize.x, dstSize.y, 1, filter);
-
-        auto srcRedIt = reinterpret_cast<const float*>(surface.channel(0));
-        auto srcGreenIt = reinterpret_cast<const float*>(surface.channel(1));
-        auto srcBlueIt = reinterpret_cast<const float*>(surface.channel(2));
-        auto srcAlphaIt = reinterpret_cast<const float*>(surface.channel(3));
-
-        if (_format == Format_RGBAF) {
-            Image output(_dims.x, _dims.y, _format);
-            auto dstPixelIt = output._floatData.begin();
-            auto dstPixelEnd = output._floatData.end();
-
-            while (dstPixelIt < dstPixelEnd) {
-                *dstPixelIt = glm::vec4(*srcRedIt, *srcGreenIt, *srcBlueIt, *srcAlphaIt);
-                ++srcRedIt;
-                ++srcGreenIt;
-                ++srcBlueIt;
-                ++srcAlphaIt;
-
-                ++dstPixelIt;
-            }
+            std::transform(out.cbegin(), out.cend(), output._floatData.begin(),
+                           [](auto p) { return glm::vec4(p.red, p.green, p.blue, p.alpha); });
 
             return output;
         } else {
@@ -124,17 +110,14 @@ Image Image::getScaled(glm::uvec2 dstSize, AspectRatioMode ratioMode, Transforma
             QImage resizedImage((int)dstSize.x, (int)dstSize.y, (QImage::Format)Image::Format_PACKED_FLOAT);
 
             auto packFunc = getHDRPackingFunction();
+            auto outIt = out.cbegin();
             for (glm::uint32 lineNb = 0; lineNb < dstSize.y; lineNb++) {
                 glm::uint32* dstPixelIt = reinterpret_cast<glm::uint32*>(resizedImage.scanLine((int)lineNb));
-                glm::uint32* dstPixelEnd = dstPixelIt + dstSize.x;
+                auto outItEnd = outIt + dstSize.x;
 
-                while (dstPixelIt < dstPixelEnd) {
-                    *dstPixelIt = packFunc(glm::vec3(*srcRedIt, *srcGreenIt, *srcBlueIt));
-                    ++srcRedIt;
-                    ++srcGreenIt;
-                    ++srcBlueIt;
-                    ++dstPixelIt;
-                }
+                std::transform(outIt, outItEnd, dstPixelIt,
+                               [&](auto p) { return packFunc(glm::vec3(p.red, p.green, p.blue)); });
+                outIt = outItEnd;
             }
             return resizedImage;
         }
@@ -148,18 +131,19 @@ Image Image::getConvertedToFormat(Format newFormat) const {
 
     if (newFormat == _format) {
         return *this;
-    } else if ((_format != Format_R11G11B10F && _format != Format_RGBAF) && (newFormat != Format_R11G11B10F && newFormat != Format_RGBAF)) {
+    } else if ((_format != Format_R11G11B10F && _format != Format_RGBAF) &&
+               (newFormat != Format_R11G11B10F && newFormat != Format_RGBAF)) {
         return _packedData.convertToFormat((QImage::Format)newFormat);
     } else if (_format == Format_PACKED_FLOAT) {
         Image newImage(_dims.x, _dims.y, newFormat);
 
         switch (newFormat) {
             case Format_RGBAF:
-                convertToFloatFromPacked(getBits(), _dims.x, _dims.y, getBytesPerLineCount(), gpu::Element::COLOR_R11G11B10, newImage._floatData.data(), _dims.x);
+                convertToFloatFromPacked(getBits(), _dims.x, _dims.y, getBytesPerLineCount(), gpu::Element::COLOR_R11G11B10,
+                                         newImage._floatData.data(), _dims.x);
                 break;
 
-            default:
-            {
+            default: {
                 auto unpackFunc = getHDRUnpackingFunction();
                 const glm::uint32* srcIt = reinterpret_cast<const glm::uint32*>(getBits());
 
@@ -179,11 +163,11 @@ Image Image::getConvertedToFormat(Format newFormat) const {
 
         switch (newFormat) {
             case Format_R11G11B10F:
-                convertToPackedFromFloat(newImage.editBits(), _dims.x, _dims.y, getBytesPerLineCount(), gpu::Element::COLOR_R11G11B10, _floatData.data(), _dims.x);
+                convertToPackedFromFloat(newImage.editBits(), _dims.x, _dims.y, getBytesPerLineCount(),
+                                         gpu::Element::COLOR_R11G11B10, _floatData.data(), _dims.x);
                 break;
 
-            default:
-            {
+            default: {
                 FloatPixels::const_iterator srcIt = _floatData.begin();
 
                 for (int y = 0; y < _dims.y; y++) {
@@ -214,7 +198,7 @@ Image Image::getConvertedToFormat(Format newFormat) const {
             }
         } else {
             auto packFunc = getHDRPackingFunction();
-            glm::uint32* dstIt = reinterpret_cast<glm::uint32*>( newImage.editBits() );
+            glm::uint32* dstIt = reinterpret_cast<glm::uint32*>(newImage.editBits());
 
             for (int y = 0; y < _dims.y; y++) {
                 auto line = (const QRgb*)getScanLine(y);

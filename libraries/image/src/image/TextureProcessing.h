@@ -18,7 +18,6 @@
 #include <gpu/Texture.h>
 
 #include "Image.h"
-#include <nvtt/nvtt.h>
 
 namespace image {
 

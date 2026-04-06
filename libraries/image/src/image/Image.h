@@ -22,6 +22,10 @@
 #include <GLMHelpers.h>
 
 namespace image {
+    namespace rust {
+        // forward decalration for getPixels helper
+        struct Pixel;
+    }
 
     class Image {
     public:
@@ -111,6 +115,10 @@ namespace image {
         const glm::uint8* getScanLine(int y) const;
         glm::uint8* editBits();
         const glm::uint8* getBits() const;
+        /**
+         * requires `#include <lib.rs.h>`
+         */
+        std::vector<rust::Pixel> getPixels() const;
 
         Image getScaled(glm::uvec2 newSize, AspectRatioMode ratioMode, TransformationMode transformationMode = Qt::SmoothTransformation) const;
         Image getConvertedToFormat(Format newFormat) const;

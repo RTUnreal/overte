@@ -31,6 +31,7 @@
   libopus,
   libsForQt5,
   libv8,
+  basis_universal,
 
   # tools for shader compilation
   scribe,
@@ -122,6 +123,7 @@ stdenv.mkDerivation {
       SDL2
       libopus
       libv8
+      basis_universal
     ];
 
   cmakeFlags = [
