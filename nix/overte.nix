@@ -17,7 +17,7 @@
   glm,
   nlohmann_json,
   tbb_2022,
-  nodejs,
+  nodejs-slim_22,
   webrtc-audio-processing,
   nvidia-texture-tools,
   openexr,
@@ -28,8 +28,9 @@
   openxr-loader,
   SDL2,
   libopus,
-  libsForQt5,
+  qt6Packages,
   libv8,
+  libxcb-cursor,
 
   # tools for shader compilation
   scribe,
@@ -73,29 +74,24 @@ stdenv.mkDerivation {
     cmake
     pkg-config
     python3
-    libsForQt5.wrapQtAppsHook
-    nodejs
+    qt6Packages.wrapQtAppsHook
+    nodejs-slim_22
     autoPatchelfHook
   ];
 
   # TODO: make dependencies minimal for !buildClient
   buildInputs =
     builtins.attrValues {
-      inherit (libsForQt5)
+      inherit (qt6Packages)
         qtbase
         qtmultimedia
         qtdeclarative
         qtwebsockets
         qtsvg
         quazip
-        ;
-      inherit (libsForQt5.qt5)
         qtwebchannel
         qtwebengine
-        qtxmlpatterns
-        qtquickcontrols2
-        qtgraphicaleffects
-        qtx11extras
+        qt5compat
         ;
     }
     ++ [
@@ -120,6 +116,7 @@ stdenv.mkDerivation {
       SDL2
       libopus
       libv8
+      libxcb-cursor
     ];
 
   cmakeFlags = [
