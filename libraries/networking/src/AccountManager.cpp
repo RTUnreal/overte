@@ -27,6 +27,9 @@
 #include <QtNetwork/QHttpMultiPart>
 #include <QtNetwork/QNetworkRequest>
 #include <QtNetwork/QNetworkReply>
+#include <QtCore/qjsonobject.h>
+#include <QtCore/qjsonparseerror.h>
+#include <QtCore/qlogging.h>
 #include <qthread.h>
 
 #include <SettingHandle.h>
@@ -1093,33 +1096,41 @@ void AccountManager::setLimitedCommerce(bool isLimited) {
 }
 
 void AccountManager::saveLoginStatus(bool isLoggedIn) {
-    if (!_configFileURL.isEmpty()) {
-        QFile configFile(_configFileURL);
-        configFile.open(QIODevice::ReadOnly | QIODevice::Text);
-        QJsonParseError error;
-        QJsonDocument jsonDocument = QJsonDocument::fromJson(configFile.readAll(), &error);
+    if (_configFileURL.isEmpty()) {
+        return;
+    };
+    QFile configFile(_configFileURL);
+    QJsonParseError error;
+    QJsonDocument jsonDocument((QJsonObject()));
+    if (configFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return;
+        jsonDocument = QJsonDocument::fromJson(configFile.readAll(), &error);
         configFile.close();
-        QString launcherPath;
-        if (error.error == QJsonParseError::NoError) {
-            QJsonObject rootObject = jsonDocument.object();
-            if (rootObject.contains("launcherPath")) {
-                launcherPath = rootObject["launcherPath"].toString();
-            }
-            if (rootObject.contains("loggedIn")) {
-                rootObject["loggedIn"] = isLoggedIn;
-            }
-            jsonDocument = QJsonDocument(rootObject);
-
+    }
+    QString launcherPath;
+    if (error.error == QJsonParseError::NoError) {
+        QJsonObject rootObject = jsonDocument.object();
+        if (rootObject.contains("launcherPath")) {
+            launcherPath = rootObject["launcherPath"].toString();
         }
-        configFile.open(QFile::WriteOnly | QFile::Text | QFile::Truncate);
+        if (rootObject.contains("loggedIn")) {
+            rootObject["loggedIn"] = isLoggedIn;
+        }
+        jsonDocument = QJsonDocument(rootObject);
+
+    }
+    if (configFile.open(QFile::WriteOnly | QFile::Text | QFile::Truncate)) {
         configFile.write(jsonDocument.toJson());
         configFile.close();
-        if (!isLoggedIn && !launcherPath.isEmpty()) {
-            QProcess launcher;
-            launcher.setProgram(launcherPath);
-            launcher.startDetached();
-            QMetaObject::invokeMethod(qApp, "quit", Qt::QueuedConnection);
-        }
+    } else {
+        qCCritical(networking) << "Could not save Login status to config file" << _configFileURL;
+        return;
+    }
+    if (!isLoggedIn && !launcherPath.isEmpty()) {
+        QProcess launcher;
+        launcher.setProgram(launcherPath);
+        launcher.startDetached();
+        QMetaObject::invokeMethod(qApp, "quit", Qt::QueuedConnection);
     }
 }
 

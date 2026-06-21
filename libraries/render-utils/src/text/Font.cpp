@@ -20,6 +20,7 @@
 
 #include <ColorUtils.h>
 
+#include <QtCore/QtAssert>
 #include <StreamHelpers.h>
 #include <shaders/Shaders.h>
 
@@ -292,7 +293,9 @@ Font::Pointer Font::load(const QString& family) {
 
         if (!loadFilename.isEmpty()) {
             QFile fontFile(loadFilename);
-            fontFile.open(QIODevice::ReadOnly);
+            // QT6TODO: can this be done better?
+            auto res = fontFile.open(QIODevice::ReadOnly);
+            Q_ASSERT(res);
 
             qCDebug(renderutils) << "Loaded font" << loadFilename << "from Qt Resource System.";
 

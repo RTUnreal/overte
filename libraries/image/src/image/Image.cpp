@@ -2,6 +2,7 @@
 #include "ImageLogging.h"
 #include "TextureProcessing.h"
 
+#include <QtCore/qnamespace.h>
 #include <nvtt/nvtt.h>
 
 using namespace image;
@@ -241,5 +242,12 @@ Image Image::getSubImage(QRect rect) const {
 
 Image Image::getMirrored(bool horizontal, bool vertical) const {
     assert(_format != Format_RGBAF);
-    return _packedData.mirrored(horizontal, vertical);
+    Qt::Orientations orientations;
+    if (horizontal) {
+        orientations |= Qt::Horizontal;
+    }
+    if (vertical) {
+        orientations |= Qt::Vertical;
+    }
+    return _packedData.flipped(orientations);
 }
