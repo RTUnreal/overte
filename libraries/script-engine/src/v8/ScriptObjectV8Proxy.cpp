@@ -909,7 +909,6 @@ void ScriptVariantV8Proxy::v8GetPropertyNames(const v8::PropertyCallbackInfo<v8:
     }
     V8ScriptValue object(proxy->_engine, objectV8);
     v8::Local<v8::Array> properties = proxy->_proto->getPropertyNames();
-    v8::Local<v8::Array> objectProperties;
     info.GetReturnValue().Set(properties);
 }
 
@@ -931,6 +930,8 @@ ScriptMethodV8Proxy::ScriptMethodV8Proxy(ScriptEngineV8* engine, QObject* object
 }
 
 ScriptMethodV8Proxy::~ScriptMethodV8Proxy() {
+    // FIXME: this feels too dumb
+    // auto _guard = _engine->getScopeGuard();
     auto isolate = _engine->getIsolate();
     Q_ASSERT(isolate->IsCurrent());
     v8::HandleScope handleScope(isolate);
